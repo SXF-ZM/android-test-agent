@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>面向安卓App的智能测试Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            padding: 24px;
+        }
+        .container { max-width: 960px; margin: 0 auto; }
+        header {
+            background: linear-gradient(135deg, #ff6a00, #ee0979);
+            color: #fff;
+            border-radius: 10px;
+            padding: 24px 28px;
+            margin-bottom: 20px;
+        }
+        header h1 { font-size: 22px; margin-bottom: 6px; }
+        header p { font-size: 13px; opacity: 0.9; }
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 14px;
+            padding-left: 10px;
+            border-left: 4px solid #ff6a00;
+        }
+        .config-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; }
+        .config-item { flex: 1; min-width: 260px; }
+        .config-item label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fff;
+        }
+        .radio-group { display: flex; gap: 20px; align-items: center; padding: 8px 0; }
+        .radio-group label { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+        .device-hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 6px;
+        }
+        .device-hint b { color: #ff6a00; }
+        textarea {
+            width: 100%;
+            min-height: 110px;
+            padding: 10px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        textarea:focus, select:focus { outline: none; border-color: #ff6a00; }
+        .btn-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+        .btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #ff6a00; color: #fff; }
+        .btn-secondary { background: #fff; color: #333; border: 1px solid #d9d9d9; }
+        .spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 3px solid #ffd9b3;
+            border-top-color: #ff6a00;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .spinner.show { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status {
+            display: none;
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .status.success { display: block; background: #f6ffed; border: 1px solid #b7eb8f; color: #389e0d; }
+        .status.error { display: block; background: #fff2f0; border: 1px solid #ffccc7; color: #cf1322; }
+        .status.info { display: block; background: #e6f7ff; border: 1px solid #91d5ff; color: #096dd9; }
+        .upload-filename { font-size: 13px; color: #666; margin-left: 8px; }
+        #result-panel { display: none; }
+        .result-block { margin-bottom: 16px; }
+        .result-block h3 { font-size: 14px; margin-bottom: 8px; color: #555; }
+        .result-block pre {
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #eee; padding: 8px 10px; text-align: left; }
+        th { background: #fafafa; color: #666; }
+        .defect-fatal { color: #cf1322; font-weight: bold; }
+        .defect-severe { color: #d46b08; font-weight: bold; }
+        .report-path {
+            font-size: 13px;
+            background: #fffbe6;
+            border: 1px solid #ffe58f;
+            border-radius: 6px;
+            padding: 10px 12px;
+            word-break: break-all;
+        }
+        footer { text-align: center; font-size: 12px; color: #999; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>面向安卓App的智能测试Agent</h1>
+        <p>LangGraph + RAG 知识库 + Appium + ADB | 基于小米安卓App测试场景的本科毕业设计原型系统</p>
+    </header>
+
+    <!-- 配置区：模型与设备（本次任务可在页面直接覆盖，不填则使用后端 .env 配置） -->
+    <div class="card">
+        <h2>运行配置</h2>
+        <div class="config-row">
+            <div class="config-item">
+                <label for="llm-provider">大模型 Provider（本次任务生效）</label>
+                <select id="llm-provider">
+                    <option value="qwen">qwen（通义千问 qwen-turbo）</option>
+                    <option value="deepseek">deepseek（DeepSeek deepseek-chat）</option>
+                </select>
+                <p class="device-hint">页面选择会覆盖 .env 的 LLM_PROVIDER，仅对本次任务生效</p>
+            </div>
+            <div class="config-item">
+                <label>设备模式（本次任务生效）</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="device-mode" value="emulator"> 安卓模拟器</label>
+                    <label><input type="radio" name="device-mode" value="real"> USB 真机</label>
+                </div>
+                <p class="device-hint">当前设备 UDID：<b id="device-udid">加载中...</b></p>
+                <input type="text" id="real-udid" placeholder="真机UDID（选择真机时填写，adb devices 查看）"
+                       autocomplete="off" style="margin-top:6px;">
+            </div>
+        </div>
+        <p class="device-hint">被测应用包名：<b id="app-package">加载中...</b></p>
+    </div>
+
+    <!-- API 密钥区：仅内存临时使用，不持久化保存 -->
+    <div class="card">
+        <h2>LLM API 密钥（可选，留空则使用后端 .env 配置）</h2>
+        <div class="config-row">
+            <div class="config-item">
+                <label for="qwen-key">通义千问 API Key</label>
+                <input type="password" id="qwen-key" placeholder="sk-..." autocomplete="off">
+            </div>
+            <div class="config-item">
+                <label for="deepseek-key">DeepSeek API Key</label>
+                <input type="password" id="deepseek-key" placeholder="sk-..." autocomplete="off">
+            </div>
+        </div>
+        <p class="device-hint">
+            <b>【API密钥说明】</b>您输入的密钥仅在本次测试任务内存临时使用，程序不会将密钥保存到任何本地文件。页面刷新密钥会丢失。
+        </p>
+    </div>
+
+    <!-- 知识库上传 -->
+    <div class="card">
+        <h2>RAG 知识库文档上传</h2>
+        <div class="btn-row">
+            <input type="file" id="doc-file" accept=".txt" style="display:none">
+            <button class="btn btn-secondary" id="btn-upload">上传 txt 知识文档</button>
+            <span class="upload-filename" id="upload-filename"></span>
+            <span class="spinner" id="upload-spinner"></span>
+        </div>
+        <div class="status" id="upload-status"></div>
+    </div>
+
+    <!-- 测试任务 -->
+    <div class="card">
+        <h2>启动自动化测试任务</h2>
+        <label for="requirement" style="display:block;font-size:13px;color:#666;margin-bottom:6px;">
+            App 测试需求描述（5~2000 字符，例如：测试小米计算器的加法功能，计算1加2是否等于3）
+        </label>
+        <textarea id="requirement" placeholder="请输入要测试的 App 功能需求描述..."></textarea>
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btn-run">启动自动化测试</button>
+            <span class="spinner" id="run-spinner"></span>
+            <span id="run-tip" style="font-size:13px;color:#999;"></span>
+        </div>
+        <div class="status" id="run-status"></div>
+    </div>
+
+    <!-- 结果展示区 -->
+    <div class="card" id="result-panel">
+        <h2>测试执行结果</h2>
+
+        <div class="result-block">
+            <h3>生成的测试用例</h3>
+            <pre id="result-cases"></pre>
+        </div>
+
+        <div class="result-block">
+            <h3>缺陷列表</h3>
+            <div id="result-defects"></div>
+        </div>
+
+        <div class="result-block">
+            <h3>执行日志（adb logcat 摘录）</h3>
+            <pre id="result-log"></pre>
+        </div>
+
+        <div class="result-block">
+            <h3>测试报告</h3>
+            <div class="report-path" id="result-report"></div>
+        </div>
+
+        <div class="result-block">
+            <h3>执行摘要 / 异常信息</h3>
+            <pre id="result-error"></pre>
+        </div>
+    </div>
+
+    <footer>面向安卓App的智能测试Agent · 本科毕业设计 · FastAPI + LangGraph + Appium</footer>
+</div>
+
+<script>
+    // ==================== 页面初始化：读取后端当前配置 ====================
+    async function initConfig() {
+        try {
+            const resp = await fetch('/api/config');
+            const config = await resp.json();
+            // 模型下拉框：选中后端当前 LLM_PROVIDER
+            document.getElementById('llm-provider').value = config.llm_provider;
+            // 设备模式单选框：选中后端当前 IS_REAL_DEVICE，并展示当前 UDID
+            const modeValue = config.is_real_device ? 'real' : 'emulator';
+            const radio = document.querySelector('input[name="device-mode"][value="' + modeValue + '"]');
+            if (radio) { radio.checked = true; }
+            document.getElementById('device-udid').textContent = config.device_udid;
+            document.getElementById('app-package').textContent = config.app_package;
+        } catch (e) {
+            document.getElementById('device-udid').textContent = '配置读取失败';
+        }
+    }
+
+    // ==================== 通用提示 ====================
+    function setStatus(id, type, text) {
+        const el = document.getElementById(id);
+        el.className = 'status ' + type;
+        el.textContent = text;
+    }
+    function clearStatus(id) {
+        const el = document.getElementById(id);
+        el.className = 'status';
+        el.textContent = '';
+    }
+
+    // ==================== 知识库文档上传 ====================
+    document.getElementById('btn-upload').addEventListener('click', function () {
+        document.getElementById('doc-file').click();
+    });
+
+    document.getElementById('doc-file').addEventListener('change', async function () {
+        const file = this.files[0];
+        if (!file) { return; }
+        document.getElementById('upload-filename').textContent = file.name;
+        clearStatus('upload-status');
+
+        const spinner = document.getElementById('upload-spinner');
+        const btn = document.getElementById('btn-upload');
+        spinner.classList.add('show');
+        btn.disabled = true;
+        setStatus('upload-status', 'info', '文档上传与向量入库中，请稍候...');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const resp = await fetch('/upload_doc', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (resp.ok) {
+                setStatus('upload-status', 'success',
+                    '上传成功：' + data.file_name + '，切分入库 ' + data.chunk_count + ' 个片段');
+            } else {
+                const msg = data.detail ? String(data.detail) : (data.message || '上传失败');
+                setStatus('upload-status', 'error', '上传失败：' + msg);
+            }
+        } catch (e) {
+            setStatus('upload-status', 'error', '上传失败：网络异常 ' + e.message);
+        } finally {
+            spinner.classList.remove('show');
+            btn.disabled = false;
+            this.value = '';
+        }
+    });
+
+    // ==================== 启动自动化测试 ====================
+    document.getElementById('btn-run').addEventListener('click', async function () {
+        const btn = this;
+        const requirement = document.getElementById('requirement').value.trim();
+        clearStatus('run-status');
+
+        // 前端基础校验，减少无效请求
+        if (requirement.length < 5) {
+            setStatus('run-status', 'error', '请输入至少 5 个字符的测试需求描述');
+            return;
+        }
+        if (requirement.length > 2000) {
+            setStatus('run-status', 'error', '测试需求描述不能超过 2000 字符');
+            return;
+        }
+
+        // 任务执行中禁止重复提交
+        btn.disabled = true;
+        document.getElementById('run-spinner').classList.add('show');
+        document.getElementById('run-tip').textContent = 'Agent 执行中（RAG检索 → 生成用例 → 动作规划 → Appium执行 → 缺陷分析 → 生成报告），预计需要数十秒...';
+        setStatus('run-status', 'info', '任务执行中，请勿关闭或刷新页面...');
+
+        try {
+            // 组装请求体：需求 + 用户填写的密钥/模型/设备覆盖参数
+            // 密钥仅在本次请求内存使用，后端不持久化保存
+            const payload = { requirement: requirement };
+
+            const qwenKey = document.getElementById('qwen-key').value.trim();
+            const deepseekKey = document.getElementById('deepseek-key').value.trim();
+            if (qwenKey) { payload.qwen_api_key = qwenKey; }
+            if (deepseekKey) { payload.deepseek_api_key = deepseekKey; }
+
+            // 模型选择（页面下拉框覆盖 .env 配置，本次任务生效）
+            const provider = document.getElementById('llm-provider').value;
+            if (provider) { payload.llm_provider = provider; }
+
+            // 设备参数：模拟器 / USB 真机（真机附带 UDID）
+            const deviceMode = document.querySelector('input[name="device-mode"]:checked');
+            if (deviceMode) {
+                payload.is_real_device = (deviceMode.value === 'real');
+                const realUdid = document.getElementById('real-udid').value.trim();
+                if (payload.is_real_device && realUdid) { payload.real_udid = realUdid; }
+            }
+
+            const resp = await fetch('/run_test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                renderResult(data);
+                loadLastResult();
+                const hasError = data.error && data.error.length > 0;
+                setStatus('run-status', hasError ? 'error' : 'success',
+                    hasError ? '执行完成，但存在异常信息，请查看下方执行摘要' : '测试任务执行成功');
+            } else {
+                const msg = data.detail ? String(data.detail) : (data.message || '请求失败');
+                setStatus('run-status', 'error', '任务失败：' + msg);
+            }
+        } catch (e) {
+            setStatus('run-status', 'error', '任务失败：网络异常 ' + e.message);
+        } finally {
+            btn.disabled = false;
+            document.getElementById('run-spinner').classList.remove('show');
+            document.getElementById('run-tip').textContent = '';
+        }
+    });
+
+    // ==================== 加载最近一次任务的完整结果（测试用例 / 执行日志） ====================
+    async function loadLastResult() {
+        try {
+            const resp = await fetch('/api/last_result');
+            if (!resp.ok) { return; }
+            const data = await resp.json();
+            document.getElementById('result-cases').innerHTML =
+                escapeHtml(data.test_cases || '（无）');
+            document.getElementById('result-log').innerHTML =
+                escapeHtml(data.adb_log_excerpt || '（未采集到日志）');
+        } catch (e) {
+            // 静默失败，不影响主结果展示
+        }
+    }
+
+    // ==================== 渲染测试结果 ====================
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
+    }
+
+    function renderResult(data) {
+        document.getElementById('result-panel').style.display = 'block';
+
+        // 缺陷列表（表格展示，无缺陷给提示）
+        const defects = data.defects || [];
+        const defectContainer = document.getElementById('result-defects');
+        if (defects.length === 0) {
+            defectContainer.innerHTML = '<pre>本轮测试未发现 Crash / ANR / UI 异常缺陷</pre>';
+        } else {
+            let rows = '';
+            defects.forEach(function (d, i) {
+                const severityClass = (d.severity === '致命') ? 'defect-fatal'
+                    : (d.severity === '严重') ? 'defect-severe' : '';
+                rows += '<tr>'
+                    + '<td>' + (i + 1) + '</td>'
+                    + '<td>' + escapeHtml(d.type) + '</td>'
+                    + '<td class="' + severityClass + '">' + escapeHtml(d.severity) + '</td>'
+                    + '<td>' + escapeHtml(d.description) + '</td>'
+                    + '<td>' + escapeHtml(d.suggestion) + '</td>'
+                    + '</tr>';
+            });
+            defectContainer.innerHTML =
+                '<table><thead><tr><th>#</th><th>类型</th><th>级别</th><th>描述</th><th>修复建议</th></tr></thead>'
+                + '<tbody>' + rows + '</tbody></table>';
+        }
+
+        // 报告路径
+        const report = data.report_path || '（未生成）';
+        document.getElementById('result-report').innerHTML =
+            '缺陷测试报告文件路径：<b>' + escapeHtml(report) + '</b><br>共识别缺陷：' + (data.defect_count || 0) + ' 个';
+
+        // 执行摘要 / 异常信息
+        const summary = []
+        summary.push('执行结果：' + (data.message || ''));
+        if (data.error && data.error.length > 0) { summary.push('异常信息：' + data.error); }
+        document.getElementById('result-error').innerHTML = escapeHtml(summary.join('\n'));
+
+        // 滚动到结果区
+        document.getElementById('result-panel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // 页面加载完成初始化配置
+    initConfig();
+</script>
+</body>
+</html>

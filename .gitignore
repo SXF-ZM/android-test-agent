@@ -1,0 +1,36 @@
+# ===== 环境与密钥（严禁提交仓库）=====
+.env
+
+# ===== Python 虚拟环境 =====
+.venv/
+venv/
+
+# ===== 向量库与模型缓存 =====
+chroma_db/
+models_cache/
+
+# ===== 测试产物 =====
+outputs/
+uploads/
+
+# ===== 打包构建产物 =====
+dist/
+build/
+*.spec
+desktop/resources/generated/
+test_agent.spec
+
+# ===== Python 运行时缓存 =====
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ===== 日志缓存文件 =====
+*.log
+*.log.*
+
+# ===== IDE / 系统文件 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

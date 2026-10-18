@@ -1,0 +1,73 @@
+============================================================
+     安卓App智能测试Agent系统 - 使用说明
+============================================================
+
+【软件组成】
+  test_agent\          后端服务（内含 test_agent.exe，无需安装 Python）
+  TestAgentDesktop\    桌面客户端（TestAgentDesktop.exe）
+  start_all.bat        一键启动脚本
+  本说明文件
+
+【一、环境要求】
+  1. Windows 10/11 64位
+  2. Node.js（LTS 版本）+ Appium 服务，安装命令：
+        npm install -g appium
+        appium driver install uiautomator2
+  3. 安卓环境（二选一）：
+     - 安卓模拟器：安装 Android Studio 并创建 Android 11(API 30) 模拟器
+     - USB 真机（推荐，更简单）：下载 Android platform-tools（含 adb），
+       手机开启"开发者选项 -> USB 调试"后数据线连接电脑
+     验证：命令行执行 adb devices 能看到设备列表
+
+【二、首次配置】
+  1. 密钥配置（二选一）：
+     a) 推荐方式：启动后在桌面客户端右侧面板（或网页 http://127.0.0.1:8000）
+        直接填写通义千问/DeepSeek 的 API Key，
+        密钥仅本次任务内存使用，不写入任何文件；
+     b) 固定方式：编辑 test_agent\.env，填入：
+        LLM_API_KEY=sk-你的通义千问密钥        （模型选 qwen 时）
+        DEEPSEEK_API_KEY=sk-你的DeepSeek密钥   （模型选 deepseek 时）
+  2. 被测应用：默认配置为系统设置应用（com.android.settings）。
+     如需测试小米计算器等其他 App，修改 .env 中的：
+        APP_PACKAGE=包名        例如 com.miui.calculator
+        APP_ACTIVITY=启动页     例如 .cal.CalculatorMainActivity
+     （查询包名：adb shell pm list packages | findstr 关键词）
+
+【三、启动方式】
+  方式一（推荐）：双击 start_all.bat 一键启动
+  方式二（手动，按顺序）：
+    1) 启动模拟器或连接真机
+    2) 命令行执行：appium --address 127.0.0.1 --port 4723
+    3) 双击 test_agent\test_agent.exe（控制台窗口保留）
+    4) 双击 TestAgentDesktop\TestAgentDesktop.exe
+    5) 或浏览器打开 http://127.0.0.1:8000
+
+【四、执行一次测试任务】
+  1. 左侧面板"新建任务"：填写任务名称与测试需求描述
+  2. 右侧面板：选择模型（qwen/DeepSeek）、填 API Key、选设备模式
+  3. （可选）上传测试知识文档 txt 到 RAG 知识库
+  4. 点击"开始任务"，观察中间日志与底部进度条
+  5. 任务完成后自动弹出 Markdown 测试报告，可导出到本地
+  6. 日志面板支持导出 txt
+
+【五、常见问题】
+  Q: 双击 exe 提示"无法启动"或被杀毒拦截？
+  A: 点击"仍要运行"或将软件目录加入杀毒软件白名单。
+
+  Q: 提示 Appium 连接失败？
+  A: 检查 Appium 窗口是否正常启动；模拟器是否开机；真机是否授权 USB 调试。
+
+  Q: 大模型调用异常 / 401？
+  A: API Key 无效或未填写，请在界面重新填写有效密钥。
+
+  Q: 任务卡在"工具调用中"很久？
+  A: 正在执行 Appium 操作与日志采集，单任务通常 1~3 分钟；
+     长时间无响应可点击"终止任务"。
+
+  Q: 端口被占用？
+  A: 后端使用 8000 端口、Appium 使用 4723 端口，
+     关闭占用进程或重启电脑后重试。
+
+【六、退出软件】
+  关闭桌面客户端窗口 -> 关闭后端控制台窗口 -> 关闭 Appium 窗口。
+============================================================
