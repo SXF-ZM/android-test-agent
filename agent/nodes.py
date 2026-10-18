@@ -55,6 +55,26 @@ _LEVEL_FILTERED_KEYWORDS: set = {"AndroidRuntime", "has died", "Signal ", "Force
 ActionResult = Dict[str, Any]
 
 
+def _resolve_adb_serial(user_is_real: Any, user_udid: str | None) -> str:
+    """解析本次任务 adb 抓日志/截屏的目标设备序列号。
+
+    与 AppiumTool 的设备覆盖逻辑保持一致，确保 Appium 操作与 adb 采集
+    始终作用于同一台设备（多设备在线时避免误操作 .env 默认设备）。
+
+    Args:
+        user_is_real: 前端设备模式覆盖值（True/False/None 表示使用 .env 配置）。
+        user_udid: 前端真机 UDID 覆盖值。
+
+    Returns:
+        str: adb -s 目标设备序列号。
+    """
+    if user_is_real is True:
+        return user_udid or settings.REAL_PHONE_UDID or settings.adb_device_serial
+    if user_is_real is False:
+        return settings.EMULATOR_DEVICE_NAME
+    return settings.adb_device_serial
+
+
 # ==================== LLM 客户端工厂（支持前端临时密钥与 provider 覆盖） ====================
 # 缓存 key 规则：".env" 配置实例 → "settings:<provider>"；前端临时密钥实例不缓存，
 # 任务结束即随引用释放，密钥不写入任何文件
@@ -509,8 +529,10 @@ def execute_test(state: AgentState) -> AgentState:
         appium.close()
 
     # 测试动作执行完毕，抓取 adb 日志与截图作为缺陷分析依据
-    adb_log_path = adb_tool.capture_logcat(tag="agent_run")
-    screenshot_path = adb_tool.capture_screenshot(tag="agent_run")
+    # 目标设备与本次 Appium 会话保持一致（真机覆盖参数优先）
+    adb_serial = _resolve_adb_serial(user_is_real, user_udid)
+    adb_log_path = adb_tool.capture_logcat(tag="agent_run", device_serial=adb_serial)
+    screenshot_path = adb_tool.capture_screenshot(tag="agent_run", device_serial=adb_serial)
     adb_log_content = adb_tool.read_log_file(adb_log_path) if adb_log_path else ""
 
     return {

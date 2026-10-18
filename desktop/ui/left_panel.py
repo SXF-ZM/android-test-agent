@@ -8,7 +8,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
@@ -105,6 +105,23 @@ class TaskPanel(QWidget):
         self._tasks.append(task)
         self._refresh()
         self._list_widget.setCurrentRow(len(self._tasks) - 1)
+
+    def auto_create_task(self, requirement: str) -> TaskItem:
+        """由需求文本自动创建任务并选中（免弹窗快速通道）。
+
+        Args:
+            requirement: 已通过校验的测试需求文本。
+
+        Returns:
+            TaskItem: 新建并选中的任务对象。
+        """
+        name = requirement[:20] + ("…" if len(requirement) > 20 else "")
+        task = TaskItem(task_id=self._next_id, name=name, requirement=requirement)
+        self._next_id += 1
+        self._tasks.append(task)
+        self._refresh()
+        self._list_widget.setCurrentRow(len(self._tasks) - 1)
+        return task
 
     def delete_task(self) -> None:
         """删除当前选中的任务（执行中的任务禁止删除）。"""

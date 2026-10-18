@@ -163,8 +163,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "任务执行中", "已有任务在执行，请等待完成或先终止")
             return
         if self._current_task is None:
-            QMessageBox.information(self, "提示", "请先在左侧新建并选中一个任务")
-            return
+            task = self._task_panel.auto_create_task(requirement)
+            self._current_task = task
+            log_info(f"未选中任务，已自动创建任务 #{task.task_id}: {task.name}")
 
         task = self._current_task
         if task.status == "执行中":

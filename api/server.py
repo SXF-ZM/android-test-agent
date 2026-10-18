@@ -145,8 +145,10 @@ class RunTestResponse(BaseModel):
 
 
 # ==================== 接口 1：上传文档入库 ====================
+# 同步端点（def 而非 async def）：内部含阻塞式 Chroma/Embedding 调用，
+# FastAPI 自动放入线程池执行，避免卡死事件循环导致全部接口无响应。
 @app.post("/upload_doc", response_model=UploadDocResponse, summary="上传 txt 测试知识文档入库")
-async def upload_doc(file: UploadFile = File(..., description="txt 格式测试知识文档")) -> UploadDocResponse:
+def upload_doc(file: UploadFile = File(..., description="txt 格式测试知识文档")) -> UploadDocResponse:
     """接收 txt 文档上传，保存到本地后进行文本切分，写入 Chroma 向量库。
 
     Args:
@@ -163,7 +165,7 @@ async def upload_doc(file: UploadFile = File(..., description="txt 格式测试�
         raise HTTPException(status_code=400, detail="仅支持上传 .txt 格式文档")
 
     try:
-        content = await file.read()
+        content = file.file.read()
         # 文件内容与大小校验
         if not content.strip():
             raise HTTPException(status_code=400, detail="上传文档内容为空")
@@ -195,8 +197,11 @@ async def upload_doc(file: UploadFile = File(..., description="txt 格式测试�
 
 
 # ==================== 接口 2：启动测试任务 ====================
+# 同步端点：Agent 全链路（LLM/Appium/adb）为阻塞式调用，耗时数分钟。
+# 若声明为 async def 会卡死 uvicorn 事件循环，导致 /api/logs 等全部接口无响应；
+# 改为 def 后 FastAPI 自动在线程池中执行，事件循环保持畅通，日志轮询正常工作。
 @app.post("/run_test", response_model=RunTestResponse, summary="启动 Agent 测试流程")
-async def run_test(request: RunTestRequest) -> RunTestResponse:
+def run_test(request: RunTestRequest) -> RunTestResponse:
     """接收 App 测试需求文本，启动 LangGraph Agent 完整测试链路。
 
     链路：RAG 检索 → 生成用例 → 动作规划 → Appium 执行（失败自动重规划 1 次）
@@ -326,8 +331,9 @@ async def get_logs(after_seq: int = 0) -> dict:
     }
 
 
+# 同步端点：重建向量库含阻塞式 Embedding 调用，避免卡死事件循环。
 @app.post("/rebuild_kb", summary="重建 RAG 向量库（重新入库 uploads 目录全部文档）")
-async def rebuild_kb() -> dict:
+def rebuild_kb() -> dict:
     """清空当前 Chroma collection，重新入库 uploads 目录下的全部 txt 文档。
 
     Returns:

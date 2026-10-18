@@ -218,6 +218,10 @@ class Settings(BaseSettings):
             "appium:newCommandTimeout": self.new_command_timeout,
             # 不重置 App 数据，加快会话启动速度
             "appium:noReset": True,
+            # 关键修复：App 已在后台运行时 UIA2 默认跳过启动（仅挂到后台实例），
+            # 会话会停留在桌面界面上导致全部元素查找超时、手机毫无动静；
+            # 强制每次会话启动 App 确保其一定被带到前台
+            "appium:forceAppLaunch": True,
         }
         if self.IS_REAL_DEVICE:
             # 真机模式：udid 为必填定位参数

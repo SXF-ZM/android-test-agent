@@ -14,19 +14,25 @@ ADB 工具模块
 import subprocess
 import time
 from pathlib import Path
+from typing import Optional
 
 from config.settings import settings
 from utils.logger import logger
 
 
-def _run_adb_command(args: list, timeout: int = 60) -> subprocess.CompletedProcess:
+def _run_adb_command(
+    args: list, timeout: int = 60, device_serial: Optional[str] = None
+) -> subprocess.CompletedProcess:
     """执行 adb 命令的通用封装。
 
     自动拼接 adb 路径与目标设备序列号（adb -s <serial>）。
+    多设备在线时必须显式传入本次任务的目标设备序列号，
+    避免误操作到 .env 默认设备（如模拟器已下线时报 device not found）。
 
     Args:
         args: adb 子命令参数列表（不含 adb 与 -s 设备号）。
         timeout: 命令超时时间（秒）。
+        device_serial: 目标设备序列号覆盖值；None 时使用 settings 默认设备。
 
     Returns:
         subprocess.CompletedProcess: 命令执行结果对象。
@@ -35,7 +41,8 @@ def _run_adb_command(args: list, timeout: int = 60) -> subprocess.CompletedProce
         subprocess.TimeoutExpired: 命令执行超时。
         FileNotFoundError: adb 可执行文件不存在。
     """
-    cmd = [settings.adb_path, "-s", settings.adb_device_serial] + args
+    serial = (device_serial or "").strip() or settings.adb_device_serial
+    cmd = [settings.adb_path, "-s", serial] + args
     logger.debug(f"执行 adb 命令: {' '.join(cmd)}")
     return subprocess.run(
         cmd,
@@ -47,22 +54,25 @@ def _run_adb_command(args: list, timeout: int = 60) -> subprocess.CompletedProce
     )
 
 
-def capture_logcat(tag: str = "test_run") -> str:
+def capture_logcat(tag: str = "test_run", device_serial: Optional[str] = None) -> str:
     """抓取设备 logcat 日志并保存到本地文件。
 
     先清空历史日志缓冲，再抓取当前缓冲内容，保证日志与本轮测试强相关。
 
     Args:
         tag: 日志文件标识，用于区分不同测试轮次。
+        device_serial: 目标设备序列号覆盖值（多设备在线时必传）；None 使用默认设备。
 
     Returns:
         str: 保存成功的本地日志文件路径；失败返回空字符串。
     """
     try:
         # 清空 logcat 缓冲区，仅保留本轮测试期间的日志
-        _run_adb_command(["logcat", "-c"], timeout=15)
+        _run_adb_command(["logcat", "-c"], timeout=15, device_serial=device_serial)
         # 抓取当前缓冲区的全部日志（动作执行窗口由 execute_test 节点控制）
-        result = _run_adb_command(["logcat", "-d", "-v", "threadtime"], timeout=60)
+        result = _run_adb_command(
+            ["logcat", "-d", "-v", "threadtime"], timeout=60, device_serial=device_serial
+        )
 
         if result.returncode != 0:
             logger.error(f"抓取 logcat 失败: {result.stderr}")
@@ -84,11 +94,12 @@ def capture_logcat(tag: str = "test_run") -> str:
         return ""
 
 
-def capture_screenshot(tag: str = "test_run") -> str:
+def capture_screenshot(tag: str = "test_run", device_serial: Optional[str] = None) -> str:
     """对设备当前屏幕截图，并拉取保存到本地目录。
 
     Args:
         tag: 截图文件标识，用于区分不同测试轮次。
+        device_serial: 目标设备序列号覆盖值（多设备在线时必传）；None 使用默认设备。
 
     Returns:
         str: 保存成功的本地截图路径；失败返回空字符串。
@@ -97,7 +108,9 @@ def capture_screenshot(tag: str = "test_run") -> str:
     try:
         # 在设备端执行截屏
         screencap_result = _run_adb_command(
-            ["shell", "screencap", "-p", device_screenshot_path], timeout=30
+            ["shell", "screencap", "-p", device_screenshot_path],
+            timeout=30,
+            device_serial=device_serial,
         )
         if screencap_result.returncode != 0:
             logger.error(f"设备端截屏失败: {screencap_result.stderr}")
@@ -107,7 +120,11 @@ def capture_screenshot(tag: str = "test_run") -> str:
         local_file = Path(settings.screenshot_output_dir) / f"screenshot_{tag}_{timestamp}.png"
 
         # 将截图从设备拉取到本地
-        pull_result = _run_adb_command(["pull", device_screenshot_path, str(local_file)], timeout=30)
+        pull_result = _run_adb_command(
+            ["pull", device_screenshot_path, str(local_file)],
+            timeout=30,
+            device_serial=device_serial,
+        )
         if pull_result.returncode != 0:
             logger.error(f"拉取截图到本地失败: {pull_result.stderr}")
             return ""

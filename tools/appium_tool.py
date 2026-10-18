@@ -92,7 +92,7 @@ class AppiumTool:
         if use_real:
             name = self.udid or settings.REAL_PHONE_UDID or "(未配置UDID)"
         else:
-            name = settings.emulator_device_name
+            name = settings.EMULATOR_DEVICE_NAME
         return f"{mode}, 设备: {name}"
 
     def connect(self) -> bool:
