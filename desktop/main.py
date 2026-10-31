@@ -7,7 +7,8 @@
     cd test_agent
     .\\.venv\\Scripts\\python -m desktop.main
 
-前置条件：后端服务已启动（python main.py），Appium 与模拟器/真机按需启动。
+前置条件：后端服务已启动（python main.py）；Appium 后端需启动 Appium 服务，
+mobile-mcp 后端需安装 Node.js 20+；模拟器/真机按需启动。
 """
 
 import sys

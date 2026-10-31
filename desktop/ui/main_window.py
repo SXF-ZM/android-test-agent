@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
                 self,
                 "关于",
                 "安卓App智能测试Agent系统（PySide6 桌面客户端）\n"
-                "LangGraph + RAG + Appium + ADB\n本科毕业设计原型系统",
+                "LangGraph + RAG + Appium / mobile-mcp + ADB\n本科毕业设计原型系统",
             )
         )
         menu.addAction(act_about)

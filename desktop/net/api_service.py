@@ -117,6 +117,7 @@ class ApiService:
             "requirement": requirement,
             "llm_provider": runtime_config.llm_provider,
             "is_real_device": runtime_config.is_real_device,
+            "device_backend": runtime_config.device_backend or "appium",
         }
         # 密钥仅在内存中随请求传递，后端不持久化
         if runtime_config.qwen_key:
@@ -125,6 +126,10 @@ class ApiService:
             payload["deepseek_api_key"] = runtime_config.deepseek_key
         if runtime_config.is_real_device and runtime_config.device_udid:
             payload["real_udid"] = runtime_config.device_udid
+        if runtime_config.app_package:
+            payload["app_package"] = runtime_config.app_package
+        if runtime_config.app_activity:
+            payload["app_activity"] = runtime_config.app_activity
         return http_client.post_json(self._url("/run_test"), payload, on_success, on_error)
 
 

@@ -9,11 +9,13 @@ FastAPI 接口模块
 未处理异常统一由全局异常处理器兜底（500）并记录 traceback 日志。
 
 前置条件（重要）：
-1. 需预先启动 Appium 服务（默认 http://127.0.0.1:4723）
+1. 默认 Appium 后端需预先启动 Appium 服务（默认 http://127.0.0.1:4723）；
+   mobile_mcp 后端需 Node.js 20+ / npx，无需 Appium
 2. 需预先启动安卓模拟器，或连接真机并开启 USB 调试
 """
 
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -43,7 +45,7 @@ _last_result_state: Optional[Dict[str, Any]] = None
 
 app = FastAPI(
     title="面向安卓 App 的智能测试 Agent",
-    description="基于 LangGraph + RAG + Appium + ADB 的安卓 App 自动化测试原型系统",
+    description="基于 LangGraph + RAG + Appium/mobile-mcp + ADB 的安卓 App 自动化测试原型系统",
     version="1.2.0",
 )
 
@@ -124,6 +126,27 @@ class RunTestRequest(BaseModel):
     real_udid: Optional[str] = Field(
         default=None, description="真机 UDID 覆盖值（真机模式下生效）"
     )
+    device_backend: Optional[str] = Field(
+        default=None,
+        description="执行后端覆盖值：appium / mobile_mcp；为空时使用 .env 的 DEVICE_BACKEND",
+    )
+    app_package: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="被测应用包名覆盖值（如 com.android.chrome）；为空时使用 .env 的 APP_PACKAGE",
+    )
+    app_activity: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="启动 Activity 覆盖值（如 .MainActivity）；为空时使用 .env 的 APP_ACTIVITY",
+    )
+    stepwise_agent: Optional[bool] = Field(
+        default=None,
+        description=(
+            "是否启用逐步 UI 驱动模式：true=每步读取实时 UI 树并选择动作；"
+            "false=强制静态动作规划；为空时使用 .env 的 STEPWISE_AGENT_ENABLED"
+        ),
+    )
 
 
 class UploadDocResponse(BaseModel):
@@ -138,10 +161,19 @@ class RunTestResponse(BaseModel):
     """测试任务响应体。"""
 
     message: str
+    run_id: str = ""
     report_path: str
     defect_count: int
     defects: list
     error: str = ""
+    device_backend: str = ""
+    screenshot_path: str = ""
+    app_package: str = ""
+    app_activity: str = ""
+    stepwise_mode: bool = False
+    stepwise_steps: int = 0
+    goal_achieved: bool = False
+    goal_evidence: str = ""
 
 
 # ==================== 接口 1：上传文档入库 ====================
@@ -172,9 +204,12 @@ def upload_doc(file: UploadFile = File(..., description="txt 格式测试知识�
         if len(content) > MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(status_code=400, detail="文档过大，请上传不超过 2MB 的 txt 文档")
 
-        # 保存上传文件到本地 uploads 目录
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        save_path = Path(settings.upload_dir) / f"{timestamp}_{file.filename}"
+        # 保存上传文件到本地 uploads 目录；只取文件名并加随机后缀，
+        # 避免路径穿越与同一秒上传同名文件互相覆盖。Windows 客户端可能
+        # 提交反斜杠路径，先统一分隔符再取 basename。
+        safe_name = Path(file.filename.replace("\\", "/")).name or "upload.txt"
+        timestamp = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        save_path = Path(settings.upload_dir) / f"{timestamp}_{safe_name}"
         save_path.write_bytes(content)
         logger.info(f"文档上传保存成功: {save_path}")
 
@@ -197,15 +232,15 @@ def upload_doc(file: UploadFile = File(..., description="txt 格式测试知识�
 
 
 # ==================== 接口 2：启动测试任务 ====================
-# 同步端点：Agent 全链路（LLM/Appium/adb）为阻塞式调用，耗时数分钟。
+# 同步端点：Agent 全链路（LLM/设备后端/adb）为阻塞式调用，耗时数分钟。
 # 若声明为 async def 会卡死 uvicorn 事件循环，导致 /api/logs 等全部接口无响应；
 # 改为 def 后 FastAPI 自动在线程池中执行，事件循环保持畅通，日志轮询正常工作。
 @app.post("/run_test", response_model=RunTestResponse, summary="启动 Agent 测试流程")
 def run_test(request: RunTestRequest) -> RunTestResponse:
     """接收 App 测试需求文本，启动 LangGraph Agent 完整测试链路。
 
-    链路：RAG 检索 → 生成用例 → 动作规划 → Appium 执行（失败自动重规划 1 次）
-    → adb 日志缺陷分析 → 输出 Markdown 报告。
+    链路：RAG 检索 → 生成用例 → 动作规划 → Appium / mobile-mcp 执行
+    （失败自动重规划 1 次）→ adb 日志缺陷分析 → 输出 Markdown 报告。
 
     Args:
         request: 测试任务请求体（requirement 5~2000 字符）。
@@ -227,6 +262,10 @@ def run_test(request: RunTestRequest) -> RunTestResponse:
             llm_provider=request.llm_provider,
             is_real_device=request.is_real_device,
             real_udid=request.real_udid,
+            device_backend=request.device_backend,
+            app_package=request.app_package,
+            app_activity=request.app_activity,
+            stepwise_agent=request.stepwise_agent,
         )
         # 缓存最近一次完整结果，供 GET /api/last_result 查询（不影响本接口返回结构）
         # 安全约束：剥离临时密钥字段，密钥仅在图执行周期内存活，不做任何缓存
@@ -238,10 +277,21 @@ def run_test(request: RunTestRequest) -> RunTestResponse:
 
         return RunTestResponse(
             message="测试流程执行完成" if not error else "测试流程执行完成（存在异常，请查看 error 字段）",
+            run_id=final_state.get("run_id", ""),
             report_path=final_state.get("report_path", ""),
             defect_count=len(defects),
             defects=defects,
             error=error,
+            device_backend=final_state.get(
+                "device_backend", settings.validate_device_backend()
+            ),
+            screenshot_path=final_state.get("screenshot_path", ""),
+            app_package=final_state.get("app_package", "") or settings.app_package,
+            app_activity=final_state.get("app_activity", "") or settings.app_activity,
+            stepwise_mode=bool(final_state.get("stepwise_mode")),
+            stepwise_steps=int(final_state.get("stepwise_steps", 0) or 0),
+            goal_achieved=bool(final_state.get("goal_achieved")),
+            goal_evidence=str(final_state.get("goal_evidence", "") or ""),
         )
     except Exception as e:
         logger.error(f"测试任务接口异常: {e}", exc_info=True)
@@ -290,6 +340,9 @@ async def get_config() -> dict:
         "is_real_device": settings.IS_REAL_DEVICE,
         "device_udid": settings.device_name,
         "app_package": settings.app_package,
+        "app_activity": settings.app_activity,
+        "device_backend": settings.validate_device_backend(),
+        "mobile_mcp_transport": settings.validate_mobile_mcp_transport(),
     }
 
 
@@ -305,11 +358,20 @@ async def get_last_result() -> dict:
         尚无任务记录时返回提示字段。
     """
     if not _last_result_state:
-        return {"test_cases": "", "adb_log_excerpt": ""}
+        return {
+            "run_id": "",
+            "test_cases": "",
+            "adb_log_excerpt": "",
+            "device_backend": "",
+            "screenshot_path": "",
+        }
     log_excerpt = (_last_result_state.get("adb_log_content") or "")[-3000:]
     return {
+        "run_id": _last_result_state.get("run_id", ""),
         "test_cases": _last_result_state.get("test_cases", ""),
         "adb_log_excerpt": log_excerpt,
+        "device_backend": _last_result_state.get("device_backend", ""),
+        "screenshot_path": _last_result_state.get("screenshot_path", ""),
     }
 
 

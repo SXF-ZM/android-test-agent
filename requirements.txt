@@ -22,6 +22,10 @@ sentence-transformers>=2.7.0
 Appium-Python-Client>=3.1.0
 selenium>=4.20.0
 
+# 可选执行后端：mobile-mcp（MCP Python SDK，stdio / Streamable HTTP 客户端）
+# 已适配 1.x / 2.x；限制主版本，避免未来 3.x API 变更破坏现有客户端代码
+mcp>=1.9.0,<3
+
 # 配置与数据校验
 pydantic>=2.7.0
 pydantic-settings>=2.2.0

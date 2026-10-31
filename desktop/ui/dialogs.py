@@ -2,7 +2,7 @@
 """
 通用对话框模块
 任务需求输入、Markdown 报告预览（QTextDocument 原生渲染，无 WebView）、
-分类异常弹窗（网络失败 / Appium 连接失败 / 大模型调用异常）。
+分类异常弹窗（网络失败 / Appium 连接失败 / mobile-mcp 连接失败 / 大模型调用异常）。
 """
 
 from pathlib import Path
@@ -111,13 +111,21 @@ class ReportPreviewDialog(QDialog):
 
 
 def show_error_popup(parent: QWidget, message: str) -> None:
-    """按错误内容分类弹窗提示（网络失败 / Appium 失败 / 大模型异常 / 其他）。
+    """按错误内容分类弹窗提示（网络 / Appium / mobile-mcp / 大模型异常）。
 
     Args:
         parent: 父窗口。
         message: 原始错误描述。
     """
-    if "Appium" in message or "模拟器" in message or "真机" in message:
+    if "mobile-mcp" in message or "mobile_mcp" in message or "MCP" in message:
+        title = "mobile-mcp 连接失败"
+        detail = (
+            "无法启动或连接 mobile-mcp。\n"
+            "请检查：\n1. 是否安装 Node.js 20+ 且 npx 可用\n"
+            "2. 安卓模拟器是否启动 / 真机是否连接并开启 USB 调试\n"
+            "3. 首次运行是否已联网下载 npm 包"
+        )
+    elif "Appium" in message or "模拟器" in message or "真机" in message:
         title = "Appium 连接失败"
         detail = (
             "无法连接 Appium 服务或设备。\n"

@@ -49,6 +49,8 @@ cfg.set_status(66, "工具调用中")
 assert cfg._progress.value() == 66
 cfg.mark_finished(True, 2)
 assert cfg._label_status.text().find("执行完成") >= 0
+assert cfg._edit_app_package.placeholderText()
+assert cfg._edit_app_activity.placeholderText()
 print("OK config_panel_status")
 
 # 5. 报告预览（Markdown 原生渲染）

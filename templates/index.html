@@ -5,136 +5,431 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>面向安卓App的智能测试Agent</title>
     <style>
+        /* ============================================================
+           1. 设计令牌：颜色、字号、间距、圆角、阴影、动效
+           ============================================================ */
+        :root {
+            --bg: #f6f7f9;
+            --surface: #ffffff;
+            --surface-muted: #f9fafb;
+            --border: #e5e7eb;
+            --border-strong: #d0d5dd;
+            --border-hover: #98a2b3;
+            --text: #1f2937;
+            --text-secondary: #4b5563;
+            --text-muted: #667085;
+            --text-placeholder: #667085;
+            --text-disabled: #98a2b3;
+
+            --primary: #2f5fd0;
+            --primary-hover: #274fb0;
+            --primary-active: #1f418f;
+            --primary-soft: #eef3ff;
+            --primary-border: #c9d8f8;
+            --focus-ring: rgba(47, 95, 208, 0.18);
+
+            --success: #1a7f4b;
+            --success-bg: #eefaf3;
+            --success-border: #bfe8d1;
+            --danger: #b42318;
+            --danger-bg: #fef3f2;
+            --danger-border: #f5c6c2;
+            --warning: #8a5a00;
+
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+                "Noto Sans CJK SC", sans-serif;
+            --font-mono: "SFMono-Regular", "JetBrains Mono", Consolas,
+                "Liberation Mono", Menlo, monospace;
+
+            --radius-control: 8px;
+            --radius-card: 12px;
+            --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04),
+                0 1px 3px rgba(16, 24, 40, 0.06);
+            --transition: 120ms cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        /* ============================================================
+           2. 基础样式
+           ============================================================ */
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
         body {
-            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-            background: #f0f2f5;
-            color: #333;
-            padding: 24px;
-        }
-        .container { max-width: 960px; margin: 0 auto; }
-        header {
-            background: linear-gradient(135deg, #ff6a00, #ee0979);
-            color: #fff;
-            border-radius: 10px;
-            padding: 24px 28px;
-            margin-bottom: 20px;
-        }
-        header h1 { font-size: 22px; margin-bottom: 6px; }
-        header p { font-size: 13px; opacity: 0.9; }
-        .card {
-            background: #fff;
-            border-radius: 10px;
-            padding: 20px 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
-        .card h2 {
-            font-size: 16px;
-            margin-bottom: 14px;
-            padding-left: 10px;
-            border-left: 4px solid #ff6a00;
-        }
-        .config-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; }
-        .config-item { flex: 1; min-width: 260px; }
-        .config-item label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
-        select, input[type="text"] {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #d9d9d9;
-            border-radius: 6px;
+            font-family: var(--font-sans);
             font-size: 14px;
-            background: #fff;
+            line-height: 22px;
+            background: var(--bg);
+            color: var(--text);
+            padding: 32px 24px 40px;
+            -webkit-font-smoothing: antialiased;
         }
-        .radio-group { display: flex; gap: 20px; align-items: center; padding: 8px 0; }
-        .radio-group label { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+        ::selection { background: var(--primary-soft); color: var(--text); }
+        button, input, select, textarea { font: inherit; }
+        .container { max-width: 960px; margin: 0 auto; }
+
+        /* ============================================================
+           3. 头部与卡片
+           ============================================================ */
+        header {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card);
+            padding: 24px 28px;
+            margin-bottom: 16px;
+        }
+        header h1 {
+            font-size: 24px;
+            line-height: 32px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+        header p {
+            font-size: 13px;
+            line-height: 20px;
+            color: var(--text-muted);
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card);
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+        .card > h2 {
+            font-size: 16px;
+            line-height: 24px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0 0 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* ============================================================
+           4. 表单：栅格、标签、提示、控件
+           ============================================================ */
+        .config-row { display: flex; flex-wrap: wrap; gap: 24px; }
+        .config-item { flex: 1 1 260px; min-width: 260px; }
+        .field-label {
+            display: block;
+            font-size: 13px;
+            line-height: 20px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .field-label--spaced { margin-top: 8px; }
         .device-hint {
             font-size: 12px;
-            color: #999;
-            margin-top: 6px;
+            line-height: 18px;
+            color: var(--text-muted);
+            margin-top: 4px;
         }
-        .device-hint b { color: #ff6a00; }
-        textarea {
+        .device-hint b { color: var(--text); font-weight: 500; }
+        .control {
             width: 100%;
-            min-height: 110px;
-            padding: 10px 12px;
-            border: 1px solid #d9d9d9;
-            border-radius: 6px;
+            height: 40px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-control);
+            background: var(--surface);
+            color: var(--text);
             font-size: 14px;
+            line-height: 22px;
+            transition: border-color var(--transition), box-shadow var(--transition),
+                background-color var(--transition);
+        }
+        .control::placeholder { color: var(--text-placeholder); opacity: 1; }
+        .control:hover:not(:disabled) { border-color: var(--border-hover); }
+        .control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+        .control:disabled {
+            background: var(--surface-muted);
+            color: var(--text-disabled);
+            border-color: var(--border);
+            cursor: not-allowed;
+        }
+        textarea.control {
+            height: auto;
+            min-height: 112px;
+            padding: 12px;
             resize: vertical;
-            font-family: inherit;
         }
-        textarea:focus, select:focus { outline: none; border-color: #ff6a00; }
-        .btn-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-        .btn {
-            padding: 10px 22px;
-            border: none;
-            border-radius: 6px;
+        #real-udid { margin-top: 8px; }
+        #doc-file { display: none; }
+
+        .radio-group {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 8px 0;
+        }
+        .radio-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
             font-size: 14px;
+            line-height: 22px;
+            color: var(--text-secondary);
             cursor: pointer;
-            transition: opacity 0.2s;
         }
-        .btn:hover { opacity: 0.85; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary { background: #ff6a00; color: #fff; }
-        .btn-secondary { background: #fff; color: #333; border: 1px solid #d9d9d9; }
+        .radio-option:hover { color: var(--text); }
+        .radio-option input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .radio-option input[type="radio"]:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        /* ============================================================
+           5. 按钮与加载状态
+           ============================================================ */
+        .btn-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+            padding: 0 16px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-control);
+            font-size: 14px;
+            line-height: 20px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color var(--transition), border-color var(--transition),
+                color var(--transition), box-shadow var(--transition);
+        }
+        .btn:focus { outline: none; }
+        .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .btn:disabled { cursor: not-allowed; }
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #ffffff;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+        .btn-primary:active:not(:disabled) {
+            background: var(--primary-active);
+            border-color: var(--primary-active);
+        }
+        .btn-primary:disabled {
+            background: var(--border);
+            border-color: var(--border);
+            color: var(--text-disabled);
+        }
+        .btn-secondary {
+            background: var(--surface);
+            border-color: var(--border-strong);
+            color: var(--text-secondary);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--surface-muted);
+            border-color: var(--border-hover);
+            color: var(--text);
+        }
+        .btn-secondary:active:not(:disabled) {
+            background: #f2f4f7;
+        }
+        .btn-secondary:disabled {
+            background: var(--surface-muted);
+            border-color: var(--border);
+            color: var(--text-disabled);
+        }
         .spinner {
             display: none;
-            width: 18px;
-            height: 18px;
-            border: 3px solid #ffd9b3;
-            border-top-color: #ff6a00;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
         .spinner.show { display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .upload-filename {
+            min-width: 0;
+            max-width: 100%;
+            font-size: 13px;
+            line-height: 20px;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #run-tip { font-size: 13px; line-height: 20px; color: var(--text-muted); }
+
+        /* ============================================================
+           6. 状态提示
+           ============================================================ */
         .status {
             display: none;
-            margin-top: 12px;
-            padding: 10px 14px;
-            border-radius: 6px;
+            margin-top: 16px;
+            padding: 12px 16px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-control);
             font-size: 13px;
+            line-height: 20px;
         }
-        .status.success { display: block; background: #f6ffed; border: 1px solid #b7eb8f; color: #389e0d; }
-        .status.error { display: block; background: #fff2f0; border: 1px solid #ffccc7; color: #cf1322; }
-        .status.info { display: block; background: #e6f7ff; border: 1px solid #91d5ff; color: #096dd9; }
-        .upload-filename { font-size: 13px; color: #666; margin-left: 8px; }
+        .status.success,
+        .status.error,
+        .status.info { display: block; animation: status-in 160ms ease-out; }
+        .status.success {
+            background: var(--success-bg);
+            border-color: var(--success-border);
+            color: var(--success);
+        }
+        .status.error {
+            background: var(--danger-bg);
+            border-color: var(--danger-border);
+            color: var(--danger);
+        }
+        .status.info {
+            background: var(--primary-soft);
+            border-color: var(--primary-border);
+            color: var(--primary);
+        }
+        @keyframes status-in {
+            from { opacity: 0; transform: translateY(-2px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============================================================
+           7. 结果区：代码块、表格、报告路径
+           ============================================================ */
         #result-panel { display: none; }
-        .result-block { margin-bottom: 16px; }
-        .result-block h3 { font-size: 14px; margin-bottom: 8px; color: #555; }
+        .result-block { margin-bottom: 24px; }
+        .result-block:last-child { margin-bottom: 0; }
+        .result-block h3 {
+            font-size: 14px;
+            line-height: 22px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
         .result-block pre {
-            background: #fafafa;
-            border: 1px solid #eee;
-            border-radius: 6px;
-            padding: 12px;
-            font-size: 12px;
-            white-space: pre-wrap;
-            word-break: break-all;
             max-height: 300px;
-            overflow-y: auto;
+            padding: 16px;
+            overflow: auto;
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-control);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 20px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-strong) transparent;
         }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { border: 1px solid #eee; padding: 8px 10px; text-align: left; }
-        th { background: #fafafa; color: #666; }
-        .defect-fatal { color: #cf1322; font-weight: bold; }
-        .defect-severe { color: #d46b08; font-weight: bold; }
-        .report-path {
+        .result-block pre::-webkit-scrollbar { width: 8px; height: 8px; }
+        .result-block pre::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
+            border-radius: 999px;
+        }
+        .result-block pre::-webkit-scrollbar-track { background: transparent; }
+
+        #result-defects { overflow-x: auto; }
+        #result-defects:has(table) {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-control);
+        }
+        #result-defects table {
+            width: 100%;
+            min-width: 640px;
+            border-collapse: collapse;
             font-size: 13px;
-            background: #fffbe6;
-            border: 1px solid #ffe58f;
-            border-radius: 6px;
-            padding: 10px 12px;
-            word-break: break-all;
+            line-height: 20px;
+            font-variant-numeric: tabular-nums;
         }
-        footer { text-align: center; font-size: 12px; color: #999; margin-top: 10px; }
+        #result-defects th,
+        #result-defects td {
+            padding: 12px 16px;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid var(--border);
+        }
+        #result-defects th {
+            background: var(--surface-muted);
+            color: var(--text-secondary);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        #result-defects tbody tr:last-child td { border-bottom: none; }
+
+        .defect-fatal { color: var(--danger); font-weight: 600; }
+        .defect-severe { color: var(--warning); font-weight: 600; }
+        .report-path {
+            padding: 12px 16px;
+            background: var(--primary-soft);
+            border: 1px solid var(--primary-border);
+            border-radius: var(--radius-control);
+            font-size: 13px;
+            line-height: 20px;
+            color: var(--text-secondary);
+            overflow-wrap: anywhere;
+        }
+        .report-path b { color: var(--text); font-weight: 500; }
+
+        footer {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 12px;
+            line-height: 18px;
+            color: var(--text-muted);
+        }
+
+        /* ============================================================
+           8. 响应式与动效偏好
+           ============================================================ */
+        @media (max-width: 720px) {
+            body { padding: 16px 16px 32px; }
+            header { padding: 20px; }
+            .card { padding: 20px; }
+            header h1 { font-size: 20px; line-height: 28px; }
+            .config-row { gap: 16px; }
+            .config-item { flex: 1 1 100%; min-width: 0; }
+            .result-block pre { max-height: 240px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            .spinner { animation-duration: 1.6s !important; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <header>
         <h1>面向安卓App的智能测试Agent</h1>
-        <p>LangGraph + RAG 知识库 + Appium + ADB | 基于小米安卓App测试场景的本科毕业设计原型系统</p>
+        <p>LangGraph + RAG 知识库 + Appium / mobile-mcp + ADB | 基于小米安卓App测试场景的本科毕业设计原型系统</p>
     </header>
 
     <!-- 配置区：模型与设备（本次任务可在页面直接覆盖，不填则使用后端 .env 配置） -->
@@ -142,25 +437,44 @@
         <h2>运行配置</h2>
         <div class="config-row">
             <div class="config-item">
-                <label for="llm-provider">大模型 Provider（本次任务生效）</label>
-                <select id="llm-provider">
+                <label class="field-label" for="llm-provider">大模型 Provider（本次任务生效）</label>
+                <select id="llm-provider" class="control">
                     <option value="qwen">qwen（通义千问 qwen-turbo）</option>
                     <option value="deepseek">deepseek（DeepSeek deepseek-chat）</option>
                 </select>
                 <p class="device-hint">页面选择会覆盖 .env 的 LLM_PROVIDER，仅对本次任务生效</p>
             </div>
             <div class="config-item">
-                <label>设备模式（本次任务生效）</label>
-                <div class="radio-group">
-                    <label><input type="radio" name="device-mode" value="emulator"> 安卓模拟器</label>
-                    <label><input type="radio" name="device-mode" value="real"> USB 真机</label>
+                <label class="field-label" for="device-backend">执行后端（本次任务生效）</label>
+                <select id="device-backend" class="control">
+                    <option value="appium">Appium（默认，稳定）</option>
+                    <option value="mobile_mcp">mobile-mcp（MCP 实验后端）</option>
+                </select>
+                <p class="device-hint">mobile-mcp 需 Node.js 20+，首次启动自动下载 npx 包；日志与截图仍由 adb 采集</p>
+            </div>
+            <div class="config-item">
+                <label class="field-label" id="device-mode-label">设备模式（本次任务生效）</label>
+                <div class="radio-group" role="radiogroup" aria-labelledby="device-mode-label">
+                    <label class="radio-option"><input type="radio" name="device-mode" value="emulator"> 安卓模拟器</label>
+                    <label class="radio-option"><input type="radio" name="device-mode" value="real"> USB 真机</label>
                 </div>
                 <p class="device-hint">当前设备 UDID：<b id="device-udid">加载中...</b></p>
-                <input type="text" id="real-udid" placeholder="真机UDID（选择真机时填写，adb devices 查看）"
-                       autocomplete="off" style="margin-top:6px;">
+                <input type="text" id="real-udid" class="control"
+                       placeholder="真机UDID（选择真机时填写，adb devices 查看）" autocomplete="off">
+            </div>
+            <div class="config-item">
+                <label class="field-label" for="app-package-input">被测应用包名（本次任务生效）</label>
+                <input type="text" id="app-package-input" class="control"
+                       placeholder="留空使用后端配置" autocomplete="off">
+                <label class="field-label field-label--spaced" for="app-activity-input">启动 Activity（本次任务生效）</label>
+                <input type="text" id="app-activity-input" class="control"
+                       placeholder="留空使用后端配置" autocomplete="off">
+                <p class="device-hint">
+                    当前后端默认：<b id="app-package">加载中...</b> /
+                    <b id="app-activity">加载中...</b>
+                </p>
             </div>
         </div>
-        <p class="device-hint">被测应用包名：<b id="app-package">加载中...</b></p>
     </div>
 
     <!-- API 密钥区：仅内存临时使用，不持久化保存 -->
@@ -168,12 +482,12 @@
         <h2>LLM API 密钥（可选，留空则使用后端 .env 配置）</h2>
         <div class="config-row">
             <div class="config-item">
-                <label for="qwen-key">通义千问 API Key</label>
-                <input type="password" id="qwen-key" placeholder="sk-..." autocomplete="off">
+                <label class="field-label" for="qwen-key">通义千问 API Key</label>
+                <input type="password" id="qwen-key" class="control" placeholder="sk-..." autocomplete="off">
             </div>
             <div class="config-item">
-                <label for="deepseek-key">DeepSeek API Key</label>
-                <input type="password" id="deepseek-key" placeholder="sk-..." autocomplete="off">
+                <label class="field-label" for="deepseek-key">DeepSeek API Key</label>
+                <input type="password" id="deepseek-key" class="control" placeholder="sk-..." autocomplete="off">
             </div>
         </div>
         <p class="device-hint">
@@ -185,27 +499,27 @@
     <div class="card">
         <h2>RAG 知识库文档上传</h2>
         <div class="btn-row">
-            <input type="file" id="doc-file" accept=".txt" style="display:none">
+            <input type="file" id="doc-file" accept=".txt">
             <button class="btn btn-secondary" id="btn-upload">上传 txt 知识文档</button>
             <span class="upload-filename" id="upload-filename"></span>
-            <span class="spinner" id="upload-spinner"></span>
+            <span class="spinner" id="upload-spinner" aria-hidden="true"></span>
         </div>
-        <div class="status" id="upload-status"></div>
+        <div class="status" id="upload-status" role="status" aria-live="polite" aria-atomic="true"></div>
     </div>
 
     <!-- 测试任务 -->
     <div class="card">
         <h2>启动自动化测试任务</h2>
-        <label for="requirement" style="display:block;font-size:13px;color:#666;margin-bottom:6px;">
+        <label class="field-label" for="requirement">
             App 测试需求描述（5~2000 字符，例如：测试小米计算器的加法功能，计算1加2是否等于3）
         </label>
-        <textarea id="requirement" placeholder="请输入要测试的 App 功能需求描述..."></textarea>
+        <textarea id="requirement" class="control" placeholder="请输入要测试的 App 功能需求描述..."></textarea>
         <div class="btn-row">
             <button class="btn btn-primary" id="btn-run">启动自动化测试</button>
-            <span class="spinner" id="run-spinner"></span>
-            <span id="run-tip" style="font-size:13px;color:#999;"></span>
+            <span class="spinner" id="run-spinner" aria-hidden="true"></span>
+            <span id="run-tip"></span>
         </div>
-        <div class="status" id="run-status"></div>
+        <div class="status" id="run-status" role="status" aria-live="polite" aria-atomic="true"></div>
     </div>
 
     <!-- 结果展示区 -->
@@ -238,7 +552,7 @@
         </div>
     </div>
 
-    <footer>面向安卓App的智能测试Agent · 本科毕业设计 · FastAPI + LangGraph + Appium</footer>
+    <footer>面向安卓App的智能测试Agent · 本科毕业设计 · FastAPI + LangGraph + Appium / mobile-mcp</footer>
 </div>
 
 <script>
@@ -249,12 +563,21 @@
             const config = await resp.json();
             // 模型下拉框：选中后端当前 LLM_PROVIDER
             document.getElementById('llm-provider').value = config.llm_provider;
+            // 执行后端：选中 .env 的 DEVICE_BACKEND（appium / mobile_mcp）
+            const backendSelect = document.getElementById('device-backend');
+            if (config.device_backend) { backendSelect.value = config.device_backend; }
             // 设备模式单选框：选中后端当前 IS_REAL_DEVICE，并展示当前 UDID
             const modeValue = config.is_real_device ? 'real' : 'emulator';
             const radio = document.querySelector('input[name="device-mode"][value="' + modeValue + '"]');
             if (radio) { radio.checked = true; }
             document.getElementById('device-udid').textContent = config.device_udid;
-            document.getElementById('app-package').textContent = config.app_package;
+            document.getElementById('app-package').textContent = config.app_package || '未配置';
+            document.getElementById('app-activity').textContent = config.app_activity || '未配置';
+            // 输入框留空表示沿用后端配置，placeholder 展示当前默认值
+            document.getElementById('app-package-input').placeholder =
+                '默认: ' + (config.app_package || '未配置');
+            document.getElementById('app-activity-input').placeholder =
+                '默认: ' + (config.app_activity || '未配置');
         } catch (e) {
             document.getElementById('device-udid').textContent = '配置读取失败';
         }
@@ -329,7 +652,11 @@
         // 任务执行中禁止重复提交
         btn.disabled = true;
         document.getElementById('run-spinner').classList.add('show');
-        document.getElementById('run-tip').textContent = 'Agent 执行中（RAG检索 → 生成用例 → 动作规划 → Appium执行 → 缺陷分析 → 生成报告），预计需要数十秒...';
+        const selectedBackend = document.getElementById('device-backend').value || 'appium';
+        const backendLabel = selectedBackend === 'mobile_mcp' ? 'mobile-mcp' : 'Appium';
+        document.getElementById('run-tip').textContent =
+            'Agent 执行中（RAG检索 → 生成用例 → 动作规划 → ' + backendLabel +
+            '执行 → 缺陷分析 → 生成报告），预计需要数十秒...';
         setStatus('run-status', 'info', '任务执行中，请勿关闭或刷新页面...');
 
         try {
@@ -345,6 +672,15 @@
             // 模型选择（页面下拉框覆盖 .env 配置，本次任务生效）
             const provider = document.getElementById('llm-provider').value;
             if (provider) { payload.llm_provider = provider; }
+
+            // 执行后端（appium / mobile_mcp，本次任务生效）
+            if (selectedBackend) { payload.device_backend = selectedBackend; }
+
+            // 被测应用（留空则使用后端 .env 配置，本次任务生效）
+            const appPackage = document.getElementById('app-package-input').value.trim();
+            const appActivity = document.getElementById('app-activity-input').value.trim();
+            if (appPackage) { payload.app_package = appPackage; }
+            if (appActivity) { payload.app_activity = appActivity; }
 
             // 设备参数：模拟器 / USB 真机（真机附带 UDID）
             const deviceMode = document.querySelector('input[name="device-mode"]:checked');
@@ -435,6 +771,8 @@
         // 执行摘要 / 异常信息
         const summary = []
         summary.push('执行结果：' + (data.message || ''));
+        const backend = data.device_backend === 'mobile_mcp' ? 'mobile-mcp' : 'Appium';
+        summary.push('执行后端：' + backend);
         if (data.error && data.error.length > 0) { summary.push('异常信息：' + data.error); }
         document.getElementById('result-error').innerHTML = escapeHtml(summary.join('\n'));
 

@@ -6,7 +6,7 @@ LangGraph 工作流组装模块
 START
   → rag_retrieve（RAG 检索知识库）
   → generate_test_case（生成测试用例）
-  → plan_actions（规划 Appium 动作）
+  → plan_actions（规划设备动作）
   → execute_test（执行测试 + adb 抓取日志/截图）
       ↓ 条件分支：全部动作执行失败且重试额度未用完 → 回到 plan_actions 重新规划（最多 1 次）
   → reflect_and_detect_defect（缺陷分析）
@@ -25,7 +25,9 @@ from agent.nodes import (
     reflect_and_detect_defect,
 )
 from agent.state import AgentState
+from utils import run_context
 from utils.logger import logger
+from utils.pet_broadcaster import pet_broadcaster
 
 # 动作执行失败后允许重新规划的最大次数
 MAX_PLAN_RETRY: int = 1
@@ -43,16 +45,29 @@ def route_after_execute(state: AgentState) -> str:
     Returns:
         str: 下一节点名称（"plan_actions" 或 "reflect_and_detect_defect"）。
     """
+    # 逐步 UI 驱动模式在 execute_test 内部已经完成“观察-决策-执行”闭环，
+    # 失败时不回到静态 planner 重新猜 resource-id。
+    if state.get("stepwise_mode"):
+        return "reflect_and_detect_defect"
+
     action_list = state.get("action_list", [])
     results = state.get("execute_results", [])
     plan_retry_count = state.get("plan_retry_count", 0)
 
-    all_failed = bool(action_list) and bool(results) and all(
-        not r.get("success") for r in results
+    # restart_app 是状态复位动作、sleep 是纯等待动作，两者都不产生 UI 交互，
+    # 不应参与“全部测试动作失败”的判定；否则它们执行成功会掩盖真正的
+    # UI 动作全失败，导致报告误判为通过且不触发重规划。
+    test_results = [
+        r
+        for r in results
+        if str(r.get("action", "")).strip() not in ("restart_app", "sleep")
+    ]
+    all_failed = bool(action_list) and bool(test_results) and all(
+        not r.get("success") for r in test_results
     )
     if all_failed and plan_retry_count < MAX_PLAN_RETRY:
         logger.warning(
-            f"全部动作执行失败（{len(results)} 个），触发重试分支：重新规划动作"
+            f"全部测试动作执行失败（{len(test_results)} 个），触发重试分支：重新规划动作"
             f"（已重试 {plan_retry_count}/{MAX_PLAN_RETRY} 次）"
         )
         return "plan_actions"
@@ -111,6 +126,26 @@ def build_test_agent_graph():
 test_agent_graph = build_test_agent_graph()
 
 
+def _broadcast_pet_finished(final_state: AgentState) -> None:
+    """向桌宠播报“整套测试结束”状态（默认关闭，异常静默）。
+
+    只统计动作数量，不传递报告路径、缺陷详情、日志或设备信息。
+
+    Args:
+        final_state: LangGraph 最终状态。
+    """
+    try:
+        results = final_state.get("execute_results", []) or []
+        total = len(results)
+        succeeded = sum(
+            1 for item in results if isinstance(item, dict) and item.get("success")
+        )
+        pet_broadcaster.test_finished(total, succeeded, total - succeeded)
+    except Exception:
+        # 播报统计异常也必须静默，不能把成功的测试流程改判为异常。
+        return
+
+
 def run_test_agent(
     requirement: str,
     qwen_api_key: str | None = None,
@@ -118,6 +153,10 @@ def run_test_agent(
     llm_provider: str | None = None,
     is_real_device: bool | None = None,
     real_udid: str | None = None,
+    device_backend: str | None = None,
+    app_package: str | None = None,
+    app_activity: str | None = None,
+    stepwise_agent: bool | None = None,
 ) -> AgentState:
     """执行完整测试链路的入口函数。
 
@@ -131,25 +170,47 @@ def run_test_agent(
         llm_provider: 前端选择的模型覆盖值（"qwen"/"deepseek"，可选）。
         is_real_device: 前端选择的设备模式覆盖值（可选）。
         real_udid: 前端填写的真机 UDID 覆盖值（可选）。
+        device_backend: 前端选择的执行后端覆盖值（"appium"/"mobile_mcp"，可选）。
+        app_package: 前端填写的被测应用包名覆盖值（可选）。
+        app_activity: 前端填写的启动 Activity 覆盖值（可选）。
+        stepwise_agent: 是否启用逐步 UI 驱动模式（True/False 覆盖 .env；
+            None 表示使用 STEPWISE_AGENT_ENABLED 配置）。
 
     Returns:
         AgentState: 最终 AgentState（含测试用例、执行结果、缺陷列表、报告路径等）；
         图执行抛出异常时返回携带 error 字段的状态，保证调用方不收到未处理堆栈。
     """
     logger.info(f"启动智能测试 Agent，需求: {requirement[:80]}...")
+    # 每次任务生成独立 run_id，产物写入 outputs/runs/<run_id>/
+    run_paths = run_context.create_run_paths()
+    logger.info(f"本次任务 ID: {run_paths.run_id}，产物目录: {run_paths.root}")
     # 密钥不打印日志；状态字段仅在本次图执行周期内存活
     initial_state: AgentState = {
         "requirement": requirement,
+        "run_id": run_paths.run_id,
         "user_qwen_key": (qwen_api_key or "").strip(),
         "user_deepseek_key": (deepseek_api_key or "").strip(),
         "user_provider": (llm_provider or "").strip().lower(),
         "user_is_real_device": is_real_device if isinstance(is_real_device, bool) else None,
         "user_udid": (real_udid or "").strip(),
+        "user_device_backend": (device_backend or "").strip().lower(),
+        "user_app_package": (app_package or "").strip(),
+        "user_app_activity": (app_activity or "").strip(),
+        "user_stepwise_agent": stepwise_agent if isinstance(stepwise_agent, bool) else None,
     }
     try:
         final_state = test_agent_graph.invoke(initial_state)
         logger.info("智能测试 Agent 执行完成")
+        # 桌宠单向播报：整套流程结束（PET_ENABLED=false 时为空操作）。
+        _broadcast_pet_finished(final_state)
         return final_state
     except Exception as e:
         logger.error(f"智能测试 Agent 执行异常: {e}", exc_info=True)
-        return {"requirement": requirement, "error": f"Agent 执行异常: {e}"}
+        # 异常路径同样播报失败与结束，便于桌宠及时复位状态。
+        pet_broadcaster.step_failed("test_run")
+        pet_broadcaster.test_finished(0, 0, 0)
+        return {
+            "requirement": requirement,
+            "run_id": run_paths.run_id,
+            "error": f"Agent 执行异常: {e}",
+        }

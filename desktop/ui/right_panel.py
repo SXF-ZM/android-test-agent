@@ -8,6 +8,7 @@ LLM 选择与密钥（内存保存不落地）、设备模式与 UDID、RAG 知�
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -65,6 +66,13 @@ class ConfigPanel(QWidget):
         # ==================== 设备配置 ====================
         group_dev = QGroupBox("设备环境")
         form_dev = QFormLayout(group_dev)
+        self._combo_backend = QComboBox()
+        self._combo_backend.addItem("Appium（默认，稳定）", "appium")
+        self._combo_backend.addItem("mobile-mcp（MCP 实验）", "mobile_mcp")
+        backend_index = self._combo_backend.findData(runtime_config.device_backend)
+        if backend_index >= 0:
+            self._combo_backend.setCurrentIndex(backend_index)
+        form_dev.addRow("执行后端:", self._combo_backend)
         self._radio_emulator = QRadioButton("安卓模拟器")
         self._radio_real = QRadioButton("USB 真机")
         self._radio_emulator.setChecked(True)
@@ -80,6 +88,14 @@ class ConfigPanel(QWidget):
         self._edit_udid = QLineEdit()
         self._edit_udid.setPlaceholderText("真机 UDID / 模拟器设备号（选填）")
         form_dev.addRow("设备 ID:", self._edit_udid)
+        self._edit_app_package = QLineEdit()
+        self._edit_app_package.setPlaceholderText("com.example.app（留空用后端 .env）")
+        self._edit_app_package.setText(runtime_config.app_package)
+        form_dev.addRow("应用包名:", self._edit_app_package)
+        self._edit_app_activity = QLineEdit()
+        self._edit_app_activity.setPlaceholderText(".MainActivity（留空用后端 .env）")
+        self._edit_app_activity.setText(runtime_config.app_activity)
+        form_dev.addRow("启动 Activity:", self._edit_app_activity)
         layout.addWidget(group_dev)
 
         # ==================== RAG 知识库 ====================
@@ -125,14 +141,12 @@ class ConfigPanel(QWidget):
 
     # ==================== 控件工厂 ====================
     @staticmethod
-    def _make_combo() -> "QComboBoxType":
+    def _make_combo() -> QComboBox:
         """构造 LLM 选择下拉框（通义千问 / DeepSeek）。
 
         Returns:
             配置完成的下拉框实例。
         """
-        from PySide6.QtWidgets import QComboBox
-
         combo = QComboBox()
         combo.addItem("通义千问（qwen-turbo）", "qwen")
         combo.addItem("DeepSeek（deepseek-chat）", "deepseek")
@@ -154,6 +168,9 @@ class ConfigPanel(QWidget):
             runtime_config.qwen_key = key
         runtime_config.is_real_device = self._radio_real.isChecked()
         runtime_config.device_udid = self._edit_udid.text().strip()
+        runtime_config.device_backend = self._combo_backend.currentData()
+        runtime_config.app_package = self._edit_app_package.text().strip()
+        runtime_config.app_activity = self._edit_app_activity.text().strip()
         runtime_config.save_persisted()  # 仅持久化非敏感项
 
         from desktop.ui.dialogs import TaskDialog
@@ -161,8 +178,12 @@ class ConfigPanel(QWidget):
         requirement = TaskDialog.ask_requirement(self)
         if not requirement:
             return
+        backend_label = (
+            "mobile-mcp" if runtime_config.device_backend == "mobile_mcp" else "Appium"
+        )
         log_info(
             f"配置已收集: provider={runtime_config.llm_provider}, "
+            f"backend={backend_label}, "
             f"device={'真机' if runtime_config.is_real_device else '模拟器'}"
         )
         self.start_requested.emit(requirement)

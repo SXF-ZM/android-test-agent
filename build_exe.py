@@ -59,6 +59,16 @@ HIDDEN_IMPORTS: list = [
     "uvicorn.loops.auto",
     "uvicorn.protocols.http.auto",
     "uvicorn.protocols.websockets.auto",
+    # 可选执行后端 mobile-mcp 的 MCP 客户端（stdio / Streamable HTTP 动态加载）
+    "mcp",
+    "mcp.client.stdio",
+    "mcp.client.streamable_http",
+    "anyio",
+    # mcp 1.x 使用 httpx / httpx_sse，2.x 改用 httpx2 / mcp_types
+    "httpx",
+    "httpx_sse",
+    "httpx2",
+    "mcp_types",
 ]
 
 # 全量子模块收集：chromadb 存在大量动态导入（telemetry.posthog、migrations 等），
@@ -91,6 +101,7 @@ COPY_METADATA: list = [
     "fastapi",
     "pydantic",
     "pydantic-settings",
+    "mcp",
 ]
 
 

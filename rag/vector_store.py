@@ -81,7 +81,8 @@ def rebuild_collection_from_dir(source_dir: str) -> int:
     供桌面客户端"向量库重建"功能调用（增量新增能力，不影响原有检索/入库逻辑）。
 
     :param source_dir: 待重新入库的 txt 文档目录
-    :return: 重建后入库的文档片段数量
+    :return: 重建后入库的文档片段数量；目录内没有 txt 时返回 0
+    :raises RuntimeError: 清空 collection、加载文档或写入向量库失败
     """
     from pathlib import Path
 
@@ -105,14 +106,22 @@ def rebuild_collection_from_dir(source_dir: str) -> int:
         total_chunks = 0
         for txt_file in txt_files:
             docs = load_text_document(str(txt_file))
-            total_chunks += add_documents(docs)
-            logger.info(f"重建入库完成: {txt_file.name} -> {len(docs)} 个片段")
+            if not docs:
+                logger.warning(f"文档未切分出任何片段，已跳过: {txt_file.name}")
+                continue
+            added = add_documents(docs)
+            if added == 0:
+                # add_documents 内部吞掉异常并返回 0；重建场景必须显式失败，
+                # 否则接口会把“入库失败”误报成“重建完成 0 个片段”。
+                raise RuntimeError(f"文档入库失败: {txt_file.name}")
+            total_chunks += added
+            logger.info(f"重建入库完成: {txt_file.name} -> {added} 个片段")
         logger.info(f"向量库重建完成，共入库 {total_chunks} 个片段")
         return total_chunks
     except Exception as e:
         logger.error(f"向量库重建失败: {e}", exc_info=True)
         _vector_store = None
-        return 0
+        raise RuntimeError(f"向量库重建失败: {e}") from e
 
 
 def similarity_search(query: str, top_k: int | None = None) -> List[str]:

@@ -6,7 +6,8 @@
 安全约束：
 - LLM API 密钥仅保存在本进程内存中（RuntimeConfig 实例属性），
   绝不写入任何文件 / 注册表 / 环境变量，程序退出即销毁；
-- 仅非敏感项（后端地址）允许持久化到用户配置目录，方便下次启动。
+- 仅非敏感项（后端地址、LLM Provider、执行后端、被测应用包名/Activity）
+  允许持久化到用户配置目录，方便下次启动。
 """
 
 import json
@@ -29,6 +30,9 @@ class RuntimeConfig:
         deepseek_key: DeepSeek 临时密钥（仅内存，退出即销毁）。
         is_real_device: 设备模式（False=模拟器 / True=USB 真机）。
         device_udid: 真机 UDID 或模拟器设备号。
+        device_backend: 执行后端（appium / mobile_mcp）。
+        app_package: 本次任务的被测应用包名（空表示使用后端 .env 配置）。
+        app_activity: 本次任务的启动 Activity（空表示使用后端 .env 配置）。
     """
 
     api_base_url: str = "http://127.0.0.1:8000"
@@ -37,6 +41,9 @@ class RuntimeConfig:
     deepseek_key: str = field(default="", repr=False)
     is_real_device: bool = False
     device_udid: str = ""
+    device_backend: str = "appium"
+    app_package: str = ""
+    app_activity: str = ""
 
     def load_persisted(self) -> None:
         """从用户目录加载非敏感持久化配置（不含密钥）。"""
@@ -45,15 +52,24 @@ class RuntimeConfig:
                 data = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
                 self.api_base_url = data.get("api_base_url", self.api_base_url)
                 self.llm_provider = data.get("llm_provider", self.llm_provider)
+                self.device_backend = data.get("device_backend", self.device_backend)
+                self.app_package = data.get("app_package", self.app_package)
+                self.app_activity = data.get("app_activity", self.app_activity)
         except (json.JSONDecodeError, OSError):
             pass  # 配置损坏时使用默认值
 
     def save_persisted(self) -> None:
-        """持久化非敏感配置到用户目录（仅 api_base_url 与 llm_provider）。"""
+        """持久化非敏感配置到用户目录（后端地址、模型与执行后端）。"""
         try:
             _CONFIG_FILE.write_text(
                 json.dumps(
-                    {"api_base_url": self.api_base_url, "llm_provider": self.llm_provider},
+                    {
+                        "api_base_url": self.api_base_url,
+                        "llm_provider": self.llm_provider,
+                        "device_backend": self.device_backend,
+                        "app_package": self.app_package,
+                        "app_activity": self.app_activity,
+                    },
                     ensure_ascii=False,
                     indent=2,
                 ),
