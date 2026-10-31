@@ -3,6 +3,8 @@
 基于 **LangGraph + RAG 知识库 + Appium / mobile-mcp + ADB** 的安卓 App 自动化测试原型系统（本科毕业设计，对标小米安卓 App 测试场景）。
 
 > **当前版本：V1.3.0**（2026-10-31）｜[版本迭代与变更记录](docs/项目版本迭代记录.md)
+>
+> **零基础学习主线**：如果没系统学过计算机，建议先读 [从一次安卓 App 自动测试看懂计算机](docs/零基础计算机知识串联_从安卓测试Agent看懂计算机.md)——它用这个项目把数据结构、计算机组成、操作系统、网络、Python、Android 和 LLM 串成一条线。
 
 输入 App 测试需求，Agent 自动完成完整测试链路：
 
@@ -45,6 +47,16 @@ RAG检索测试知识库 → LLM生成测试用例 → 规划执行动作 → Ap
 
 完整变更、涉及文件和验证记录见 [docs/项目版本迭代记录.md](docs/项目版本迭代记录.md)。
 
+## 学习与文档导航
+
+| 文档 | 适合谁 | 解决什么问题 |
+| --- | --- | --- |
+| [零基础计算机知识串联](docs/零基础计算机知识串联_从安卓测试Agent看懂计算机.md) | 没学过计算机的人 | 用一次测试主线串起计算机组成、操作系统、数据结构、算法、网络、Python、Android、LLM 和工程化 |
+| [项目分步开发实施步骤](docs/产物1_项目分步开发实施步骤.md) | 想自己复现项目的人 | 按阶段从零搭建，含任务拆分和验收标准 |
+| [小白 Agent 开发教学](docs/小白Agent开发教学_安卓测试Agent实战.md) | 想学 AI Agent 开发的人 | 讲清 LangGraph、RAG、工具调用和分层设计 |
+| [配套知识点手册](docs/产物2_配套知识点手册.md) | 复习/答辩/面试的人 | 按知识点索引项目中的技术选型和协作关系 |
+| [项目版本迭代记录](docs/项目版本迭代记录.md) | 维护者和答辩评审 | 每个版本改了什么、涉及哪些文件、如何验证 |
+
 ## 技术栈
 
 Python 3.10+，FastAPI，LangGraph，LangChain，Chroma，sentence-transformers（all-MiniLM-L6-v2），Appium-Python-Client（UiAutomator2），MCP Python SDK（mobile-mcp 可选后端），pydantic v2，uvicorn，Jinja2。
@@ -60,7 +72,7 @@ test_agent/
 ├── agent/                    # state / schemas / nodes（6节点）/ graph（含重试分支）
 ├── api/server.py             # FastAPI 接口 + 页面路由
 ├── utils/                    # logger / resource_path / redaction / run_context / ui_tree
-├── docs/                     # 开发实施文档、教学文稿、版本迭代记录
+├── docs/                     # 开发实施文档、教学文稿、零基础计算机主线、版本迭代记录
 ├── outputs/runs/<run_id>/    # 单次任务产物：logs / screenshots / reports
 ├── build_exe.py              # PyInstaller 打包脚本
 ├── main.py                   # 项目入口
